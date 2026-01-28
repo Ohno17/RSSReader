@@ -1,0 +1,13 @@
+{
+  "minVersion": 1,
+  "manifestVersion": 2,
+  "appVersion": "v0.1.0",
+  "waf": false,
+  "id": "io.ohno.rssreader",
+  "name": "RSSReader",
+  "author": "Ohno17",
+  "description": "Check RSS feeds for new works.",
+  "repo": "https://github.com/KindleModding/KWebBrew",
+  "icon": "icon.jpg",
+  "entrypoint": "index.html"
+}
