@@ -35,34 +35,48 @@ void save_pdf(const char* data, size_t size, const std::string& filename) {
     }
 }
 
+void on_pdf_download_finished(SoupSession *session, SoupMessage *msg, gpointer user_data) {
+    DownloadContext *ctx = static_cast<DownloadContext*>(user_data);
+
+    if (msg && msg->status_code == 200) {
+        std::string filename = ctx->work_id + ".pdf";
+        save_pdf(msg->response_body->data, msg->response_body->length, filename);
+        update_status("Saved: " + filename);
+    } else {
+        int code = msg ? msg->status_code : 0;
+        update_status("Download failed (HTTP " + std::to_string(code) + ")");
+    }
+
+    delete ctx;
+}
+
 void on_work_selected(GtkWidget* widget, gpointer data) {
     char* work_url = (char*)data;
+    if (!work_url) return;
+
     std::string url_str(work_url);
-    
     size_t last_slash = url_str.find_last_of('/');
     std::string work_id = url_str.substr(last_slash + 1);
     std::string pdf_url = "https://archiveofourown.org/downloads/" + work_id + "/work.pdf";
 
-    update_status("Downloading " + work_id + ".pdf...");
+    update_status("Starting download for " + work_id + "...");
 
-    SoupSession* session = soup_session_new();
     SoupMessage* msg = soup_message_new("GET", pdf_url.c_str());
+    if (!msg) {
+        g_free(work_url);
+        return;
+    }
     soup_message_headers_append(msg->request_headers, "User-Agent", USER_AGENT);
 
-    soup_session_send_message(session, msg);
+    DownloadContext *ctx = new DownloadContext();
+    ctx->work_id = work_id;
 
-    if (msg->status_code == 200) {
-        save_pdf(msg->response_body->data, msg->response_body->length, work_id + ".pdf");
-    } else {
-        update_status("Download failed (HTTP " + std::to_string(msg->status_code) + ")");
-    }
+    soup_session_queue_message(session, msg, on_pdf_download_finished, ctx);
 
-    g_object_unref(msg);
-    g_object_unref(session);
     g_free(work_url);
 }
 
-void parse_and_display_works(const char* xml_data, int size) {
+void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_label) {
     GList *children = gtk_container_get_children(GTK_CONTAINER(work_list_vbox));
     for(GList *iter = children; iter != NULL; iter = g_list_next(iter))
         gtk_widget_destroy(GTK_WIDGET(iter->data));
@@ -73,6 +87,13 @@ void parse_and_display_works(const char* xml_data, int size) {
 
     xmlXPathContextPtr xpathCtx = xmlXPathNewContext(doc);
     xmlXPathRegisterNs(xpathCtx, (const xmlChar*)"atom", (const xmlChar*)"http://www.w3.org/2005/Atom");
+
+    xmlXPathObjectPtr feedTitleObj = xmlXPathEvalExpression((const xmlChar*)"/atom:feed/atom:title", xpathCtx);
+    if (feedTitleObj && feedTitleObj->nodesetval && feedTitleObj->nodesetval->nodeNr > 0) {
+        const char* feed_title = (const char*)xmlNodeGetContent(feedTitleObj->nodesetval->nodeTab[0]);
+        gtk_label_set_text(GTK_LABEL(target_label), feed_title);
+    }
+    xmlXPathFreeObject(feedTitleObj);
     
     xmlXPathObjectPtr xpathObj = xmlXPathEvalExpression((const xmlChar*)"//atom:entry", xpathCtx);
     if (xpathObj && xpathObj->nodesetval) {
@@ -102,26 +123,34 @@ void parse_and_display_works(const char* xml_data, int size) {
     update_status("Feed loaded.");
     gtk_widget_show_all(work_list_vbox);
     xmlXPathFreeObject(xpathObj); xmlXPathFreeContext(xpathCtx); xmlFreeDoc(doc);
+
+    save_feeds_to_disk();
 }
 
-void on_feed_selected(GtkWidget* widget, gpointer data) {
-    char* tag = (char*)data;
-    std::string url = "https://archiveofourown.org/tags/" + std::string(tag) + "/feed.atom";
-    update_status("Fetching tag: " + std::string(tag));
-
-    SoupSession* session = soup_session_new();
-    SoupMessage* msg = soup_message_new("GET", url.c_str());
-    soup_message_headers_append(msg->request_headers, "User-Agent", USER_AGENT);
-
-    soup_session_send_message(session, msg);
-
+void on_message_completed(SoupSession *session, SoupMessage *msg, gpointer user_data) {
     if (msg->status_code == 200) {
-        parse_and_display_works(msg->response_body->data, msg->response_body->length);
+        parse_and_display_works(msg->response_body->data, msg->response_body->length, GTK_WIDGET(user_data));
     } else {
         std::string error_text = "Failed (" + std::to_string(msg->status_code) + "): " + soup_status_get_phrase(msg->status_code);
         update_status(error_text);
     }
-    g_object_unref(msg); g_object_unref(session);
+}
+
+void on_feed_selected(GtkWidget* widget, gpointer data) {
+    char* tag = (char*)data;
+
+    GtkWidget* hbox = gtk_widget_get_parent(widget);
+    GList* children = gtk_container_get_children(GTK_CONTAINER(hbox));
+    GtkWidget* target_label = GTK_WIDGET(children->data); // the label
+    g_list_free(children);
+
+    std::string url = "https://archiveofourown.org/tags/" + std::string(tag) + "/feed.atom";
+    update_status("Fetching tag: " + std::string(tag));
+
+    SoupMessage* msg = soup_message_new("GET", url.c_str());
+    soup_message_headers_append(msg->request_headers, "User-Agent", USER_AGENT);
+
+    soup_session_queue_message(session, msg, on_message_completed, target_label);
 }
 
 void on_delete_feed(GtkWidget* widget, gpointer row_container) {
@@ -130,15 +159,20 @@ void on_delete_feed(GtkWidget* widget, gpointer row_container) {
     save_feeds_to_disk();
 }
 
-void add_feed_row(const char* text) {
+// takes text = ID string, title = RSS name string
+void add_feed_row(const char* text, const char* title) {
     if (strlen(text) > 0) {
         GtkWidget* hbox = gtk_hbox_new(FALSE, 2);
+        GtkWidget* lbl = gtk_label_new(title);
         GtkWidget* btn = gtk_button_new_with_label(text);
-        GtkWidget* del = gtk_button_new_with_label("   X   ");
+        GtkWidget* del = gtk_button_new_with_label("Unsubscribe");
+
+        g_object_set_data_full(G_OBJECT(btn), "tag_id", g_strdup(text), (GDestroyNotify)g_free);
         
         g_signal_connect(btn, "clicked", G_CALLBACK(on_feed_selected), g_strdup(text));
         g_signal_connect(del, "clicked", G_CALLBACK(on_delete_feed), hbox);
         
+        gtk_box_pack_start(GTK_BOX(hbox), lbl, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(hbox), btn, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(hbox), del, FALSE, FALSE, 0);
         
@@ -159,13 +193,14 @@ void on_add_feed_clicked(GtkWidget* widget, gpointer entry_ptr) {
         }
     }
 
-    add_feed_row(text);
+    add_feed_row(text, "Click to load.");
     gtk_entry_set_text(GTK_ENTRY(entry_ptr), "");
-    save_feeds_to_disk();
 }
 
 int main(int argc, char* argv[]) {
     gtk_init(&argc, &argv);
+
+    session = soup_session_new();
 
     GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_default_size(GTK_WINDOW(window), 600, 800);
