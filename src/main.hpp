@@ -11,6 +11,9 @@
 #include <string>
 #include <vector>
 
+#include "download.hpp"
+#include "feeds.hpp"
+#include "works.hpp"
 #include "save.hpp"
 
 #define USER_AGENT "Kindle-RSS-AO3"
@@ -25,15 +28,13 @@
     #define IS_KINDLE false
 #endif
 
-struct DownloadContext {
-    std::string work_id;
-};
-
 inline SoupSession* session;
 inline GtkWidget *work_list_vbox;
 inline GtkWidget *global_feed_vbox;
 inline GtkWidget *status_bar;
 inline guint status_context_id;
 
-void add_feed_row(const char* text, const char* title);
 void update_status(const std::string& message);
+
+void on_download_works_completed(SoupSession *session, SoupMessage *msg, gpointer data);
+void on_download_pdf_completed(SoupSession *session, SoupMessage *msg, gpointer data);

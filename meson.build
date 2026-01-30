@@ -9,14 +9,14 @@ libxml_dep = dependency('libxml-2.0')
 
 subdir('src')
 
-include_dirs = include_directories(
+includes = include_directories(
   './src/'
 )
 
 executable(
   'rssreader',
   sources,
-  include_directories: include_dirs,
+  include_directories: includes,
   dependencies: [gtk_dep, libsoup_dep, libxml_dep],
   cpp_args: ['-static-libstdc++'], # add '-DKINDLE' when cross compiling
   link_args: ['-static-libstdc++']
