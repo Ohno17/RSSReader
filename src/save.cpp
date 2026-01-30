@@ -17,7 +17,7 @@ void save_feeds_to_disk()
         const char* label_text = gtk_label_get_text(GTK_LABEL(label));
 
         if (tag_id && label_text)
-            outfile << tag_id << "|" << label_text << std::endl;
+            outfile << tag_id << "," << label_text << std::endl;
         
         g_list_free(hbox_children);
     }
@@ -34,7 +34,7 @@ void load_feeds_from_disk() {
     {
         if (line.empty()) continue;
 
-        size_t delimiter_pos = line.find('|');
+        size_t delimiter_pos = line.find(",");
 
         if (delimiter_pos != std::string::npos)
         {

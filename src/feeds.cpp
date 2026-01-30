@@ -35,6 +35,9 @@ void add_feed_row(const char* text, const char* title)
     GtkWidget* btn = gtk_button_new_with_label("Load");
     GtkWidget* del = gtk_button_new_with_label("Unsubscribe");
 
+    gtk_label_set_line_wrap(GTK_LABEL(lbl), TRUE);
+    gtk_label_set_line_wrap_mode(GTK_LABEL(lbl), PANGO_WRAP_WORD_CHAR);
+
     g_object_set_data_full(G_OBJECT(btn), "tag_id", g_strdup(text), (GDestroyNotify)g_free);
     
     g_signal_connect(btn, "clicked", G_CALLBACK(on_feed_selected), NULL);

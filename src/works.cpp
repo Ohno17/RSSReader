@@ -14,7 +14,7 @@ void on_work_selected(GtkWidget* widget, gpointer data)
 
     soup_message_headers_append(msg->request_headers, "User-Agent", USER_AGENT);
 
-    DownloadData *download_task = new DownloadData(*ctx);
+    DownloadData *download_task = new DownloadData(*ctx); // copy becauase original will be auto freed at callback end
     soup_session_queue_message(session, msg, on_download_pdf_completed, download_task);
 }
 
@@ -22,7 +22,7 @@ char* format_summary(const char* raw_html)
 {
     if (!raw_html) return g_strdup("");
 
-    htmlDocPtr doc = htmlReadMemory(raw_html, strlen(raw_html), NULL, NULL, HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
+    htmlDocPtr doc = htmlReadMemory(raw_html, strlen(raw_html), "summary.html", NULL, HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
     if (!doc) return g_strdup("");
 
     xmlXPathContextPtr ctx = xmlXPathNewContext(doc);
@@ -70,8 +70,8 @@ void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_l
         gtk_widget_destroy(GTK_WIDGET(iter->data));
     g_list_free(children);
 
-    xmlDocPtr doc = xmlReadMemory(xml_data, size, "noname.xml", NULL, XML_PARSE_NOENT);
-    if (!doc) { update_status("XML Error"); return; }
+    xmlDocPtr doc = xmlReadMemory(xml_data, size, "atom.xml", NULL, XML_PARSE_NOENT);
+    if (!doc) { update_status("XML Error: Entered ID could belong to a non-cannonical tag."); return; }
 
     xmlXPathContextPtr xpathCtx = xmlXPathNewContext(doc);
     xmlXPathRegisterNs(xpathCtx, (const xmlChar*)"atom", (const xmlChar*)"http://www.w3.org/2005/Atom");

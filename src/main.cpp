@@ -20,6 +20,7 @@ void save_pdf(const char* data, size_t size, const std::string& filename)
     std::string full_path = folder + filename;
 
     std::string mkdir_cmd = "mkdir -p " + folder;
+    printf("%s", mkdir_cmd.c_str());
     system(mkdir_cmd.c_str());
 
     FILE *fp = fopen(full_path.c_str(), "wb");
