@@ -1,20 +1,23 @@
-project('rss_reader', 'cpp', version: 'v1.0.0', default_options: ['cpp_std=c++17'], meson_version: '>=1.1')
+project('rssreader', 'cpp', version: 'v1.0.0', default_options: ['cpp_std=c++17'], meson_version: '>=1.1')
+
+add_project_arguments('-Wno-deprecated-declarations', language: 'cpp')
 
 # Define dependencies we want
 gtk_dep = dependency('gtk+-2.0')
 libsoup_dep = dependency('libsoup-2.4')
 libxml_dep = dependency('libxml-2.0')
 
-###
-# Project definition
-###
-sources = files(
-    './src/main.cpp',
-    './src/save.cpp'
-)
+subdir('src')
 
 include_dirs = include_directories(
   './src/'
 )
 
-executable('rss_reader', sources, include_directories: include_dirs, dependencies: [gtk_dep, libsoup_dep, libxml_dep], cpp_args: '-static-libstdc++ -Wdeprecated-declarations', link_args: '-static-libstdc++')
+executable(
+  'rssreader',
+  sources,
+  include_directories: include_dirs,
+  dependencies: [gtk_dep, libsoup_dep, libxml_dep],
+  cpp_args: ['-static-libstdc++'], # add '-DKINDLE' when cross compiling
+  link_args: ['-static-libstdc++']
+)

@@ -62,18 +62,14 @@ void on_work_selected(GtkWidget* widget, gpointer data) {
     update_status("Starting download for " + work_id + "...");
 
     SoupMessage* msg = soup_message_new("GET", pdf_url.c_str());
-    if (!msg) {
-        g_free(work_url);
-        return;
-    }
+    if (!msg) return;
+
     soup_message_headers_append(msg->request_headers, "User-Agent", USER_AGENT);
 
     DownloadContext *ctx = new DownloadContext();
     ctx->work_id = work_id;
 
     soup_session_queue_message(session, msg, on_pdf_download_finished, ctx);
-
-    g_free(work_url);
 }
 
 char* format_summary(const char* raw_html) {
@@ -166,7 +162,7 @@ void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_l
                 gtk_label_set_line_wrap_mode(GTK_LABEL(lbl), PANGO_WRAP_WORD_CHAR);
 
                 gtk_button_set_alignment(GTK_BUTTON(btn), 0, 0.5);
-                g_signal_connect(btn, "clicked", G_CALLBACK(on_work_selected), g_strdup((const char*)link));
+                g_signal_connect_data(btn, "clicked", G_CALLBACK(on_work_selected), g_strdup((const char*)link), (GClosureNotify)g_free, (GConnectFlags)0);
                 
                 gtk_box_pack_start(GTK_BOX(work_list_vbox), btn, TRUE, TRUE, 2);
 
@@ -265,6 +261,7 @@ int main(int argc, char* argv[]) {
     session = soup_session_new();
 
     GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(window), "L:A_N:application_PC:TB_ID:com.ohno.rssreader");
     gtk_window_set_default_size(GTK_WINDOW(window), 600, 800);
     
     GtkWidget* main_vbox = gtk_vbox_new(FALSE, 0);
