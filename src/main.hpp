@@ -17,15 +17,12 @@
 #include "save.hpp"
 
 #define USER_AGENT "Kindle-RSS-AO3"
+#define CONFIG_FILE "feeds.txt"
 
 #ifdef KINDLE
-    #define DOWNLOAD_PATH "/mnt/us/documents/AO3/"
-    #define CONFIG_PATH "/mnt/us/documents/AO3/feeds.txt"
-    #define IS_KINDLE true
+    #define DATA_PATH "/mnt/us/documents/AO3/"
 #else
-    #define DOWNLOAD_PATH "./downloads/"
-    #define CONFIG_PATH "./downloads/feeds.txt"
-    #define IS_KINDLE false
+    #define DATA_PATH "./downloads/"
 #endif
 
 inline SoupSession* session;

@@ -16,13 +16,9 @@ std::string get_url_from_id(const std::string& feed_id)
 
 void save_pdf(const char* data, size_t size, const std::string& filename)
 {
-    std::string folder = DOWNLOAD_PATH;
-    std::string full_path = folder + filename;
+    ensure_data_path();
 
-    std::string mkdir_cmd = "mkdir -p " + folder;
-    printf("%s", mkdir_cmd.c_str());
-    system(mkdir_cmd.c_str());
-
+    std::string full_path = DATA_PATH + filename;
     FILE *fp = fopen(full_path.c_str(), "wb");
     if (fp) {
         fwrite(data, 1, size, fp);

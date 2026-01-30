@@ -1,9 +1,16 @@
 #include "save.hpp"
 
+void ensure_data_path()
+{
+    std::string mkdir_cmd = "mkdir -p \"" DATA_PATH "\"";
+    system(mkdir_cmd.c_str());
+}
+
 void save_feeds_to_disk()
 {
-    std::ofstream outfile(CONFIG_PATH);
-    if (!outfile.is_open()) return;
+    ensure_data_path();
+    std::ofstream outfile(DATA_PATH CONFIG_FILE);
+    if (!outfile.is_open()) { update_status("Could not open data file."); return; }
 
     GList *children = gtk_container_get_children(GTK_CONTAINER(global_feed_vbox));
     for (GList *iter = children; iter != NULL; iter = g_list_next(iter))
@@ -26,7 +33,7 @@ void save_feeds_to_disk()
 }
 
 void load_feeds_from_disk() {
-    std::ifstream infile(CONFIG_PATH);
+    std::ifstream infile(DATA_PATH CONFIG_FILE);
     if (!infile.is_open()) return;
 
     std::string line;
