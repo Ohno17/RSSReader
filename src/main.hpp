@@ -5,6 +5,7 @@
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
+#include <libxml/HTMLparser.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -20,7 +21,7 @@
     #define IS_KINDLE true
 #else
     #define DOWNLOAD_PATH "./downloads/"
-    #define CONFIG_PATH "./feeds.txt"
+    #define CONFIG_PATH "./downloads/feeds.txt"
     #define IS_KINDLE false
 #endif
 

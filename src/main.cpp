@@ -76,13 +76,55 @@ void on_work_selected(GtkWidget* widget, gpointer data) {
     g_free(work_url);
 }
 
+char* format_summary(const char* raw_html) {
+    if (!raw_html) return g_strdup("");
+
+    htmlDocPtr doc = htmlReadMemory(raw_html, strlen(raw_html), NULL, NULL, HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
+    if (!doc) return g_strdup("");
+
+    xmlXPathContextPtr ctx = xmlXPathNewContext(doc);
+    
+    xmlXPathObjectPtr authObj = xmlXPathEvalExpression((const xmlChar*)"//p[1]", ctx);
+    xmlXPathObjectPtr descObj = xmlXPathEvalExpression((const xmlChar*)"//p[2]", ctx);
+    xmlXPathObjectPtr statObj = xmlXPathEvalExpression((const xmlChar*)"//p[3]", ctx);
+    xmlXPathObjectPtr tagsObj = xmlXPathEvalExpression((const xmlChar*)"//li/a", ctx);
+
+    xmlChar* auth = (authObj->nodesetval->nodeNr > 0) ? xmlNodeGetContent(authObj->nodesetval->nodeTab[0]) : (xmlChar*)xmlStrdup((const xmlChar*)"Unknown");
+    xmlChar* desc = (descObj->nodesetval->nodeNr > 0) ? xmlNodeGetContent(descObj->nodesetval->nodeTab[0]) : (xmlChar*)xmlStrdup((const xmlChar*)"");
+    xmlChar* stats = (statObj->nodesetval->nodeNr > 0) ? xmlNodeGetContent(statObj->nodesetval->nodeTab[0]) : (xmlChar*)xmlStrdup((const xmlChar*)"");
+
+    GString* tag_list = g_string_new("");
+    if (tagsObj && tagsObj->nodesetval) {
+        for (int i = 0; i < tagsObj->nodesetval->nodeNr; i++) {
+            xmlChar* tag_name = xmlNodeGetContent(tagsObj->nodesetval->nodeTab[i]);
+            g_string_append_printf(tag_list, (i == 0) ? "%s" : ", %s", (char*)tag_name);
+            xmlFree(tag_name);
+        }
+    }
+
+    // 'stats' already contains: words chapters lang
+    char* final_text = g_strdup_printf(
+        "%s\n%s\n\n%s\nTags: %s",
+        (char*)auth, (char*)desc, (char*)stats, tag_list->str
+    );
+
+    g_string_free(tag_list, TRUE);
+    xmlFree(auth); xmlFree(desc); xmlFree(stats);
+    xmlXPathFreeObject(authObj); xmlXPathFreeObject(descObj); 
+    xmlXPathFreeObject(statObj); xmlXPathFreeObject(tagsObj);
+    xmlXPathFreeContext(ctx);
+    xmlFreeDoc(doc);
+
+    return final_text;
+}
+
 void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_label) {
     GList *children = gtk_container_get_children(GTK_CONTAINER(work_list_vbox));
     for(GList *iter = children; iter != NULL; iter = g_list_next(iter))
         gtk_widget_destroy(GTK_WIDGET(iter->data));
     g_list_free(children);
 
-    xmlDocPtr doc = xmlReadMemory(xml_data, size, "noname.xml", NULL, 0);
+    xmlDocPtr doc = xmlReadMemory(xml_data, size, "noname.xml", NULL, XML_PARSE_NOENT);
     if (!doc) { update_status("XML Error"); return; }
 
     xmlXPathContextPtr xpathCtx = xmlXPathNewContext(doc);
@@ -90,8 +132,9 @@ void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_l
 
     xmlXPathObjectPtr feedTitleObj = xmlXPathEvalExpression((const xmlChar*)"/atom:feed/atom:title", xpathCtx);
     if (feedTitleObj && feedTitleObj->nodesetval && feedTitleObj->nodesetval->nodeNr > 0) {
-        const char* feed_title = (const char*)xmlNodeGetContent(feedTitleObj->nodesetval->nodeTab[0]);
-        gtk_label_set_text(GTK_LABEL(target_label), feed_title);
+        xmlChar* raw_content = xmlNodeGetContent(feedTitleObj->nodesetval->nodeTab[0]);
+        gtk_label_set_text(GTK_LABEL(target_label), (const char*)(raw_content + 17));
+        xmlFree(raw_content);
     }
     xmlXPathFreeObject(feedTitleObj);
     
@@ -104,19 +147,38 @@ void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_l
             xmlXPathRegisterNs(entryCtx, (const xmlChar*)"atom", (const xmlChar*)"http://www.w3.org/2005/Atom");
             
             xmlXPathObjectPtr tObj = xmlXPathEvalExpression((const xmlChar*)"atom:title", entryCtx);
+            xmlXPathObjectPtr sObj = xmlXPathEvalExpression((const xmlChar*)"atom:summary", entryCtx);
             xmlXPathObjectPtr lObj = xmlXPathEvalExpression((const xmlChar*)"atom:link[@rel='alternate']/@href", entryCtx);
 
-            if (tObj->nodesetval->nodeNr > 0 && lObj->nodesetval->nodeNr > 0) {
-                const char* title = (const char*)xmlNodeGetContent(tObj->nodesetval->nodeTab[0]);
-                const char* link = (const char*)xmlNodeGetContent(lObj->nodesetval->nodeTab[0]);
+            if (tObj->nodesetval->nodeNr > 0 && sObj->nodesetval->nodeNr > 0 && lObj->nodesetval->nodeNr > 0) {
+                xmlChar* title = xmlNodeGetContent(tObj->nodesetval->nodeTab[0]);
+                xmlChar* link = xmlNodeGetContent(lObj->nodesetval->nodeTab[0]);
+                xmlChar* summary = xmlNodeGetContent(sObj->nodesetval->nodeTab[0]);
 
-                GtkWidget* btn = gtk_button_new_with_label(title);
+                char* formatted_summary = format_summary((const char*)summary);
+                char* combined_text = g_strdup_printf("%s\n%s", (char*)title, formatted_summary);
+
+                GtkWidget* btn = gtk_button_new_with_label(combined_text);
+
+                GtkWidget* lbl = gtk_bin_get_child(GTK_BIN(btn));
+                gtk_widget_set_size_request(lbl, 580, -1);
+                gtk_label_set_line_wrap(GTK_LABEL(lbl), TRUE);
+                gtk_label_set_line_wrap_mode(GTK_LABEL(lbl), PANGO_WRAP_WORD_CHAR);
+
                 gtk_button_set_alignment(GTK_BUTTON(btn), 0, 0.5);
-                g_signal_connect(btn, "clicked", G_CALLBACK(on_work_selected), g_strdup(link));
+                g_signal_connect(btn, "clicked", G_CALLBACK(on_work_selected), g_strdup((const char*)link));
                 
-                gtk_box_pack_start(GTK_BOX(work_list_vbox), btn, FALSE, FALSE, 2);
+                gtk_box_pack_start(GTK_BOX(work_list_vbox), btn, TRUE, TRUE, 2);
+
+                g_free(combined_text);
+                g_free(formatted_summary);
+                xmlFree(title);
+                xmlFree(link);
+                xmlFree(summary);
             }
-            xmlXPathFreeObject(tObj); xmlXPathFreeObject(lObj);
+            xmlXPathFreeObject(tObj);
+            xmlXPathFreeObject(sObj);
+            xmlXPathFreeObject(lObj);
             xmlXPathFreeContext(entryCtx);
         }
     }
@@ -164,7 +226,7 @@ void add_feed_row(const char* text, const char* title) {
     if (strlen(text) > 0) {
         GtkWidget* hbox = gtk_hbox_new(FALSE, 2);
         GtkWidget* lbl = gtk_label_new(title);
-        GtkWidget* btn = gtk_button_new_with_label(text);
+        GtkWidget* btn = gtk_button_new_with_label("Load");
         GtkWidget* del = gtk_button_new_with_label("Unsubscribe");
 
         g_object_set_data_full(G_OBJECT(btn), "tag_id", g_strdup(text), (GDestroyNotify)g_free);
@@ -172,8 +234,8 @@ void add_feed_row(const char* text, const char* title) {
         g_signal_connect(btn, "clicked", G_CALLBACK(on_feed_selected), g_strdup(text));
         g_signal_connect(del, "clicked", G_CALLBACK(on_delete_feed), hbox);
         
-        gtk_box_pack_start(GTK_BOX(hbox), lbl, FALSE, FALSE, 0);
-        gtk_box_pack_start(GTK_BOX(hbox), btn, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(hbox), lbl, TRUE, FALSE, 2);
+        gtk_box_pack_start(GTK_BOX(hbox), btn, FALSE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(hbox), del, FALSE, FALSE, 0);
         
         gtk_box_pack_start(GTK_BOX(global_feed_vbox), hbox, FALSE, FALSE, 2);
@@ -193,7 +255,7 @@ void on_add_feed_clicked(GtkWidget* widget, gpointer entry_ptr) {
         }
     }
 
-    add_feed_row(text, "Click to load.");
+    add_feed_row(text, text);
     gtk_entry_set_text(GTK_ENTRY(entry_ptr), "");
 }
 
@@ -227,6 +289,8 @@ int main(int argc, char* argv[]) {
     // Works scroll area
     GtkWidget* w_scroll = gtk_scrolled_window_new(NULL, NULL);
     work_list_vbox = gtk_vbox_new(FALSE, 2);
+    gtk_widget_set_size_request(work_list_vbox, -1, -1);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(w_scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(w_scroll), work_list_vbox);
     gtk_box_pack_start(GTK_BOX(main_vbox), w_scroll, TRUE, TRUE, 5);
 
@@ -238,8 +302,13 @@ int main(int argc, char* argv[]) {
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
     load_feeds_from_disk();
+    
+    #ifdef KINDLE
+        update_status("Ready (Kindle Mode)");
+    #else
+        update_status("Ready (Desktop Mode)");
+    #endif
 
-    update_status("Ready (Desktop Mode)");
     gtk_widget_show_all(window);
     gtk_main();
     return 0;
