@@ -1,5 +1,10 @@
 #include "feeds.hpp"
 
+#include <gtk/gtk.h>
+#include <string>
+
+#include "save.hpp"
+
 void on_feed_selected(GtkWidget* widget, gpointer data)
 {
     GtkWidget* hbox = gtk_widget_get_parent(widget);
@@ -28,7 +33,7 @@ void on_delete_feed(GtkWidget* widget, gpointer row_container)
 // takes text = ID string, title = RSS name string
 void add_feed_row(const char* text, const char* title)
 {
-    if (strlen(text) <= 0) return;
+    if (!text || !*text) return;
 
     GtkWidget* hbox = gtk_hbox_new(FALSE, 2);
     GtkWidget* lbl = gtk_label_new(title);

@@ -1,5 +1,11 @@
 #include "save.hpp"
 
+#include <string>
+#include <iostream>
+#include <fstream>
+
+#include "feeds.hpp"
+
 void ensure_data_path()
 {
     std::string mkdir_cmd = "mkdir -p \"" DATA_PATH "\"";

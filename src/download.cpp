@@ -1,9 +1,11 @@
 #include "download.hpp"
 
+#include <algorithm>
+
 DownloadData *create_download_data(std::string link, std::string title)
 {
     size_t last_slash = link.find_last_of('/');
-    std::string work_id = link.substr(last_slash + 1);
+    std::string work_id = (last_slash == std::string::npos) ? "unknown" : link.substr(last_slash + 1);
 
     std::string forbidden = "/\\?%*:|\"<>!@#$^&()[]{};', \t\n\r";
     std::string safe_filename = title;
@@ -19,7 +21,7 @@ DownloadData *create_download_data(std::string link, std::string title)
 
     if (!safe_filename.empty() && safe_filename[0] == '.') safe_filename[0] = '_';
     if (safe_filename.empty()) safe_filename = "download_" + work_id;
-    safe_filename += ".pdf";
+    safe_filename += DOWNLOAD_EXTENSION;
 
     return new DownloadData {work_id, link, safe_filename};
 }

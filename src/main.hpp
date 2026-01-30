@@ -2,27 +2,17 @@
 
 #include <gtk/gtk.h>
 #include <libsoup/soup.h>
-#include <libxml/parser.h>
-#include <libxml/xpath.h>
-#include <libxml/xpathInternals.h>
-#include <libxml/HTMLparser.h>
-#include <iostream>
-#include <fstream>
 #include <string>
-#include <vector>
-
-#include "download.hpp"
-#include "feeds.hpp"
-#include "works.hpp"
-#include "save.hpp"
 
 #define USER_AGENT "Kindle-RSS-AO3"
 #define CONFIG_FILE "feeds.txt"
 
 #ifdef KINDLE
     #define DATA_PATH "/mnt/us/documents/AO3/"
+    #define DOWNLOAD_EXTENSION ".azw3"
 #else
     #define DATA_PATH "./downloads/"
+    #define DOWNLOAD_EXTENSION ".pdf"
 #endif
 
 inline SoupSession* session;

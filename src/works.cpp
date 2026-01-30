@@ -1,11 +1,20 @@
 #include "works.hpp"
 
+#include "download.hpp"
+#include "save.hpp"
+
+#include <libsoup/soup.h>
+#include <libxml/parser.h>
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
+#include <libxml/HTMLparser.h>
+
 void on_work_selected(GtkWidget* widget, gpointer data)
 {
     DownloadData *ctx = static_cast<DownloadData*>(data);
     if (!ctx) return;
 
-    std::string pdf_url = "https://archiveofourown.org/downloads/" + ctx->work_id + "/work.pdf";
+    std::string pdf_url = "https://archiveofourown.org/downloads/" + ctx->work_id + "/work" DOWNLOAD_EXTENSION;
 
     update_status("Downloading " + ctx->work_id + "...");
 
@@ -80,7 +89,7 @@ void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_l
     if (feedTitleObj && feedTitleObj->nodesetval && feedTitleObj->nodesetval->nodeNr > 0)
     {
         xmlChar* raw_content = xmlNodeGetContent(feedTitleObj->nodesetval->nodeTab[0]);
-        gtk_label_set_text(GTK_LABEL(target_label), (const char*)(raw_content + 17));
+        gtk_label_set_text(GTK_LABEL(target_label), (const char*)(raw_content + 17)); // +17 chop off 'AO3 works of...'
         xmlFree(raw_content);
     }
     xmlXPathFreeObject(feedTitleObj);
@@ -88,12 +97,13 @@ void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_l
     xmlXPathObjectPtr xpathObj = xmlXPathEvalExpression((const xmlChar*)"//atom:entry", xpathCtx);
     if (xpathObj && xpathObj->nodesetval)
     {
+        xmlXPathContextPtr entryCtx = xmlXPathNewContext(doc);
+        xmlXPathRegisterNs(entryCtx, (const xmlChar*)"atom", (const xmlChar*)"http://www.w3.org/2005/Atom");
+
         for (int i = 0; i < xpathObj->nodesetval->nodeNr; i++)
         {
             xmlNodePtr entry = xpathObj->nodesetval->nodeTab[i];
-            xmlXPathContextPtr entryCtx = xmlXPathNewContext(doc);
             entryCtx->node = entry;
-            xmlXPathRegisterNs(entryCtx, (const xmlChar*)"atom", (const xmlChar*)"http://www.w3.org/2005/Atom");
             
             xmlXPathObjectPtr tObj = xmlXPathEvalExpression((const xmlChar*)"atom:title", entryCtx);
             xmlXPathObjectPtr sObj = xmlXPathEvalExpression((const xmlChar*)"atom:summary", entryCtx);
@@ -130,8 +140,8 @@ void parse_and_display_works(const char* xml_data, int size, GtkWidget* target_l
             xmlXPathFreeObject(tObj);
             xmlXPathFreeObject(sObj);
             xmlXPathFreeObject(lObj);
-            xmlXPathFreeContext(entryCtx);
         }
+        xmlXPathFreeContext(entryCtx);
     }
     update_status("Feed loaded.");
     gtk_widget_show_all(work_list_vbox);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "main.hpp"
-#include <algorithm>
 
 struct DownloadData
 {

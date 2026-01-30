@@ -1,5 +1,12 @@
 #include "main.hpp"
 
+#include <fstream>
+
+#include "download.hpp"
+#include "feeds.hpp"
+#include "works.hpp"
+#include "save.hpp"
+
 void trigger_kindle_scan(const std::string& full_path)
 {
 #ifdef KINDLE
@@ -17,28 +24,31 @@ std::string get_url_from_id(const std::string& feed_id)
 void save_pdf(const char* data, size_t size, const std::string& filename)
 {
     ensure_data_path();
-
     std::string full_path = DATA_PATH + filename;
-    FILE *fp = fopen(full_path.c_str(), "wb");
-    if (fp) {
-        fwrite(data, 1, size, fp);
-        fclose(fp);
-        update_status("Saved: " + filename);
-        trigger_kindle_scan(full_path);
-    } else {
-        update_status("Error: Write failed.");
+    std::ofstream outfile(full_path);
+
+    if (!outfile.is_open())
+    {
+        update_status("Error: Failed to save document.");
+        return;
     }
+
+    outfile << data;
+    update_status("Saved: " + filename);
+    trigger_kindle_scan(full_path);
 }
 
 void on_download_pdf_completed(SoupSession *session, SoupMessage *msg, gpointer data)
 {
     DownloadData *ctx = static_cast<DownloadData*>(data);
 
-    if (msg && msg->status_code == 200) {
-        std::string filename = ctx->work_filename + ".pdf";
+    if (msg && msg->status_code == 200)
+    {
         save_pdf(msg->response_body->data, msg->response_body->length, ctx->work_filename);
         update_status("Saved as: " + ctx->work_filename);
-    } else {
+    }
+    else
+    {
         int code = msg ? msg->status_code : 0;
         std::string error_text = "Download Failed (" + std::to_string(code) + "): " + soup_status_get_phrase(code);
         update_status(error_text);
