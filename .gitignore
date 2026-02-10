@@ -1,3 +1,5 @@
 .vscode
-build
+builddir
+builddir_kindle_pw2
 downloads
+x-tools
